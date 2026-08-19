@@ -78,18 +78,7 @@
   <div id="list"></div>
   <div class="empty" id="emptyState" style="display:none"></div>
 
-  <p class="hint">Priority and PIC edits require the team PIN. Set <code>APPS_SCRIPT_URL</code> below to sync with Google Sheets.</p>
-</div>
-
-<div class="modal-bg" id="pinModal">
-  <div class="modal">
-    <h3>Enter PIN to save</h3>
-    <input type="text" id="pinInput" placeholder="4-digit PIN" maxlength="8">
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('pinModal')">Cancel</button>
-      <button class="btn btn-solid" id="pinConfirm">Confirm</button>
-    </div>
-  </div>
+  <p class="hint">Klik badge priority, PIC, atau status buat langsung edit — kesave otomatis ke Google Sheets.</p>
 </div>
 
 <div class="modal-bg" id="addModal">
@@ -107,6 +96,7 @@
 <script>
 // ── Config ──────────────────────────────────────────────
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdt60-C8eRU8Nh-x4FNtPr3pLPGO473MWb33wBDshMEqxasumXLLjxwBV8i4QBECX6Eg/exec';
+
 // ── Seed data (used until APPS_SCRIPT_URL is set) ─────────
 let sops = [
   {ID:'sop_1', Title:'Spot Recognition Award', Category:'Recognition & Engagement', Priority:'', PIC:'', Status:'Not Started', Notes:''},
@@ -118,7 +108,6 @@ let sops = [
 ];
 
 let filter = { priority: 'all', search: '', pic: 'all' };
-let pendingAction = null;
 
 async function loadSOPs(){
   if(!APPS_SCRIPT_URL) return render();
@@ -139,26 +128,16 @@ async function writeAction(payload){
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
-function requirePin(action){
-  pendingAction = action;
-  document.getElementById('pinInput').value = '';
-  openModal('pinModal');
-}
-
-document.getElementById('pinConfirm').onclick = async () => {
-  const pin = document.getElementById('pinInput').value;
-  closeModal('pinModal');
-  if(!pendingAction) return;
-  const result = await writeAction({...pendingAction, pin});
+async function doAction(action){
+  const result = await writeAction(action);
   if(!result.ok){ alert(result.error || 'Save failed'); return; }
   await loadSOPs();
-  pendingAction = null;
-};
+}
 
 function cyclePriority(sop){
   const order = ['', 'Urgent', 'Not Urgent'];
   const next = order[(order.indexOf(sop.Priority) + 1) % order.length];
-  requirePin({ action:'update', id: sop.ID, fields: { Priority: next } });
+  doAction({ action:'update', id: sop.ID, fields: { Priority: next } });
 }
 
 function editPIC(sop, el){
@@ -167,17 +146,17 @@ function editPIC(sop, el){
   el.onblur = () => {
     el.contentEditable = false;
     const val = el.textContent.trim();
-    if(val !== (sop.PIC || '')) requirePin({ action:'update', id: sop.ID, fields: { PIC: val } });
+    if(val !== (sop.PIC || '')) doAction({ action:'update', id: sop.ID, fields: { PIC: val } });
   };
 }
 
 function changeStatus(sop, val){
-  requirePin({ action:'update', id: sop.ID, fields: { Status: val } });
+  doAction({ action:'update', id: sop.ID, fields: { Status: val } });
 }
 
 function deleteSOP(sop){
   if(!confirm('Delete "'+sop.Title+'"?')) return;
-  requirePin({ action:'delete', id: sop.ID });
+  doAction({ action:'delete', id: sop.ID });
 }
 
 document.getElementById('addBtn').onclick = () => openModal('addModal');
@@ -186,7 +165,7 @@ document.getElementById('addConfirm').onclick = () => {
   const category = document.getElementById('newCategory').value.trim();
   if(!title){ alert('Enter a SOP title'); return; }
   closeModal('addModal');
-  requirePin({ action:'add', title, category, priority:'', pic:'', status:'Not Started', notes:'' });
+  doAction({ action:'add', title, category, priority:'', pic:'', status:'Not Started', notes:'' });
   document.getElementById('newTitle').value = '';
   document.getElementById('newCategory').value = '';
 };
