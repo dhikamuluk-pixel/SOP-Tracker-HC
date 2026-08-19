@@ -59,6 +59,14 @@
   .modal input, .modal textarea{width:100%;margin-bottom:10px}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
   .hint{font-size:12px;color:var(--muted);margin-top:20px;text-align:center}
+  .summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .summary-item{background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .summary-item b{font-size:15px;color:var(--ink)}
+  .summary-item.su-urgent b{color:var(--urgent)}
+  .summary-item.su-noturgent b{color:var(--brand)}
+  .loading-state{text-align:center;color:var(--muted);padding:50px 0;font-size:13px}
+  .loading-state .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin 0.7s linear infinite;margin-right:8px;vertical-align:-3px}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -81,7 +89,8 @@
     <button class="btn btn-solid" id="addBtn">+ Add SOP</button>
   </div>
 
-  <div id="list"></div>
+  <div class="summary" id="summary"></div>
+  <div id="list"><div class="loading-state"><span class="spin"></span>Loading SOPs…</div></div>
   <div class="empty" id="emptyState" style="display:none"></div>
 
   <p class="hint">Pilih priority dari dropdown, klik PIC buat edit, atau ganti status — kesave otomatis ke Google Sheets.</p>
@@ -287,7 +296,21 @@ function renderEmpty(){
     `<h3>No matches for "${filter.search}"</h3><p>Try a different SOP name, or clear the filter to see the full list.</p>`;
 }
 
+function renderSummary(){
+  const total = sops.length;
+  const urgent = sops.filter(s => s.Priority === 'Urgent').length;
+  const noturgent = sops.filter(s => s.Priority === 'Not Urgent').length;
+  const undecided = sops.filter(s => !s.Priority).length;
+  document.getElementById('summary').innerHTML = `
+    <div class="summary-item"><b>${total}</b> Total SOP</div>
+    <div class="summary-item su-urgent"><b>${urgent}</b> Urgent</div>
+    <div class="summary-item su-noturgent"><b>${noturgent}</b> Not urgent</div>
+    <div class="summary-item"><b>${undecided}</b> Belum diputusin</div>
+  `;
+}
+
 function render(){
+  renderSummary();
   const picSet = new Set(sops.map(s => s.PIC).filter(Boolean));
   const picFilterEl = document.getElementById('picFilter');
   const current = filter.pic;
