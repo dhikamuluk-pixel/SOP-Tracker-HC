@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOP Revision Tracker</title>
+<style>
+  :root{
+    --brand:#14532D; --brand-soft:#E8F0EA; --urgent:#B3261E; --urgent-soft:#FBEAE8;
+    --ink:#14241B; --muted:#5B6B60; --border:#D8DED9; --paper:#FAFAF7; --white:#FFFFFF;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--ink)}
+  header{background:var(--brand);color:#fff;padding:20px 24px}
+  header h1{margin:0;font-size:20px;font-weight:600}
+  header p{margin:4px 0 0;font-size:13px;color:#CFE0D4}
+  .wrap{max-width:920px;margin:0 auto;padding:20px 16px 60px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0}
+  .tabs{display:flex;gap:6px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:3px}
+  .tab{border:none;background:transparent;padding:7px 14px;border-radius:6px;font-size:13px;cursor:pointer;color:var(--muted)}
+  .tab.active{background:var(--brand);color:#fff}
+  input[type=text], select{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;background:#fff}
+  #searchInput{flex:1;min-width:160px}
+  .btn{border:1px solid var(--brand);color:var(--brand);background:#fff;padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer}
+  .btn:hover{background:var(--brand-soft)}
+  .btn-solid{background:var(--brand);color:#fff}
+  .btn-solid:hover{opacity:.9}
+  .card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .card-title{font-size:14px;font-weight:600;margin:0}
+  .card-cat{font-size:12px;color:var(--muted);margin:2px 0 0}
+  .badge{font-size:11px;font-weight:600;padding:4px 9px;border-radius:20px;white-space:nowrap;border:1px solid transparent;cursor:pointer}
+  .badge-urgent{background:var(--urgent-soft);color:var(--urgent);border-color:var(--urgent)}
+  .badge-noturgent{background:var(--brand-soft);color:var(--brand);border-color:var(--brand)}
+  .badge-unset{background:#F1F0EA;color:var(--muted);border:1px dashed var(--muted)}
+  .meta-row{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap}
+  .meta{font-size:12px}
+  .meta label{display:block;color:var(--muted);margin-bottom:3px}
+  .pic-field{border:1px dashed var(--border);border-radius:6px;padding:4px 8px;font-size:13px;cursor:text;min-width:90px;display:inline-block}
+  .pic-field:empty:before{content:"+ assign PIC";color:var(--muted)}
+  select.status{font-size:12px;padding:4px 6px;border-radius:6px}
+  .row-actions{display:flex;gap:6px}
+  .icon-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;padding:4px 6px}
+  .icon-btn:hover{color:var(--urgent)}
+  .empty{background:var(--white);border-radius:12px;padding:44px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px}
+  .empty h3{margin:0;font-size:16px}
+  .empty p{margin:0;color:var(--muted);font-size:13px;max-width:340px}
+  .stamp{width:110px;height:110px}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal-bg.show{display:flex}
+  .modal{background:#fff;border-radius:12px;padding:20px;width:320px;max-width:90vw}
+  .modal h3{margin:0 0 12px;font-size:15px}
+  .modal input, .modal textarea{width:100%;margin-bottom:10px}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+  .hint{font-size:12px;color:var(--muted);margin-top:20px;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SOP Revision Tracker</h1>
+  <p>Priority and PIC status for pending SOP updates — HCS &amp; GPA</p>
+</header>
+
+<div class="wrap">
+  <div class="toolbar">
+    <div class="tabs" id="priorityTabs">
+      <button class="tab active" data-filter="all">All</button>
+      <button class="tab" data-filter="Urgent">Urgent</button>
+      <button class="tab" data-filter="Not Urgent">Not urgent</button>
+      <button class="tab" data-filter="unset">Not yet decided</button>
+    </div>
+    <input type="text" id="searchInput" placeholder="Search SOP name...">
+    <select id="picFilter"><option value="all">All PIC</option></select>
+    <button class="btn btn-solid" id="addBtn">+ Add SOP</button>
+  </div>
+
+  <div id="list"></div>
+  <div class="empty" id="emptyState" style="display:none"></div>
+
+  <p class="hint">Priority and PIC edits require the team PIN. Set <code>APPS_SCRIPT_URL</code> below to sync with Google Sheets.</p>
+</div>
+
+<div class="modal-bg" id="pinModal">
+  <div class="modal">
+    <h3>Enter PIN to save</h3>
+    <input type="text" id="pinInput" placeholder="4-digit PIN" maxlength="8">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('pinModal')">Cancel</button>
+      <button class="btn btn-solid" id="pinConfirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="addModal">
+  <div class="modal">
+    <h3>Add SOP</h3>
+    <input type="text" id="newTitle" placeholder="SOP title">
+    <input type="text" id="newCategory" placeholder="Category (e.g. Employee Benefits)">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('addModal')">Cancel</button>
+      <button class="btn btn-solid" id="addConfirm">Add</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ──────────────────────────────────────────────
+const APPS_SCRIPT_URL = ''; // paste your Apps Script Web App URL here after deploying Code.gs
+
+// ── Seed data (used until APPS_SCRIPT_URL is set) ─────────
+let sops = [
+  {ID:'sop_1', Title:'Spot Recognition Award', Category:'Recognition & Engagement', Priority:'', PIC:'', Status:'Not Started', Notes:''},
+  {ID:'sop_2', Title:'Time Sheet', Category:'Payroll & Attendance', Priority:'', PIC:'', Status:'Not Started', Notes:''},
+  {ID:'sop_3', Title:'Training and Development', Category:'Learning & Development', Priority:'', PIC:'', Status:'Not Started', Notes:''},
+  {ID:'sop_4', Title:'Hajj Pilgrimage Assistance Program', Category:'Employee Benefits', Priority:'', PIC:'', Status:'Not Started', Notes:''},
+  {ID:'sop_5', Title:'Reward for High Achieving Student (PPSB)', Category:'Employee Benefits', Priority:'', PIC:'', Status:'Not Started', Notes:''},
+  {ID:'sop_6', Title:'Program Magang', Category:'Talent Acquisition', Priority:'', PIC:'', Status:'Not Started', Notes:''}
+];
+
+let filter = { priority: 'all', search: '', pic: 'all' };
+let pendingAction = null;
+
+async function loadSOPs(){
+  if(!APPS_SCRIPT_URL) return render();
+  try{
+    const res = await fetch(APPS_SCRIPT_URL);
+    const json = await res.json();
+    if(json.ok) sops = json.data;
+  }catch(e){ console.warn('Sync failed, using local data', e); }
+  render();
+}
+
+async function writeAction(payload){
+  if(!APPS_SCRIPT_URL){ alert('Set APPS_SCRIPT_URL first to save changes.'); return {ok:false}; }
+  const res = await fetch(APPS_SCRIPT_URL, {method:'POST', body: JSON.stringify(payload)});
+  return res.json();
+}
+
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+function requirePin(action){
+  pendingAction = action;
+  document.getElementById('pinInput').value = '';
+  openModal('pinModal');
+}
+
+document.getElementById('pinConfirm').onclick = async () => {
+  const pin = document.getElementById('pinInput').value;
+  closeModal('pinModal');
+  if(!pendingAction) return;
+  const result = await writeAction({...pendingAction, pin});
+  if(!result.ok){ alert(result.error || 'Save failed'); return; }
+  await loadSOPs();
+  pendingAction = null;
+};
+
+function cyclePriority(sop){
+  const order = ['', 'Urgent', 'Not Urgent'];
+  const next = order[(order.indexOf(sop.Priority) + 1) % order.length];
+  requirePin({ action:'update', id: sop.ID, fields: { Priority: next } });
+}
+
+function editPIC(sop, el){
+  el.contentEditable = true;
+  el.focus();
+  el.onblur = () => {
+    el.contentEditable = false;
+    const val = el.textContent.trim();
+    if(val !== (sop.PIC || '')) requirePin({ action:'update', id: sop.ID, fields: { PIC: val } });
+  };
+}
+
+function changeStatus(sop, val){
+  requirePin({ action:'update', id: sop.ID, fields: { Status: val } });
+}
+
+function deleteSOP(sop){
+  if(!confirm('Delete "'+sop.Title+'"?')) return;
+  requirePin({ action:'delete', id: sop.ID });
+}
+
+document.getElementById('addBtn').onclick = () => openModal('addModal');
+document.getElementById('addConfirm').onclick = () => {
+  const title = document.getElementById('newTitle').value.trim();
+  const category = document.getElementById('newCategory').value.trim();
+  if(!title){ alert('Enter a SOP title'); return; }
+  closeModal('addModal');
+  requirePin({ action:'add', title, category, priority:'', pic:'', status:'Not Started', notes:'' });
+  document.getElementById('newTitle').value = '';
+  document.getElementById('newCategory').value = '';
+};
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filter.priority = btn.dataset.filter;
+    render();
+  };
+});
+document.getElementById('searchInput').oninput = (e) => { filter.search = e.target.value.toLowerCase(); render(); };
+document.getElementById('picFilter').onchange = (e) => { filter.pic = e.target.value; render(); };
+
+function priorityBadge(sop){
+  if(sop.Priority === 'Urgent') return `<span class="badge badge-urgent" onclick="cyclePriority(sops.find(s=>s.ID==='${sop.ID}'))">Urgent</span>`;
+  if(sop.Priority === 'Not Urgent') return `<span class="badge badge-noturgent" onclick="cyclePriority(sops.find(s=>s.ID==='${sop.ID}'))">Not urgent</span>`;
+  return `<span class="badge badge-unset" onclick="cyclePriority(sops.find(s=>s.ID==='${sop.ID}'))">Set priority</span>`;
+}
+
+function stampSvg(text, solid, rot){
+  const stroke = 'var(--brand)', fill = solid ? 'var(--brand)' : 'none', color = solid ? '#fff' : 'var(--brand)';
+  return `<svg class="stamp" viewBox="0 0 120 120"><g transform="rotate(${rot} 60 60)">
+    <rect x="8" y="30" width="104" height="60" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="3" stroke-dasharray="5 4"/>
+    <text x="60" y="65" text-anchor="middle" font-family="monospace" font-size="12" font-weight="600" fill="${color}" letter-spacing="1">${text}</text>
+  </g></svg>`;
+}
+
+function renderEmpty(){
+  const list = document.getElementById('list');
+  const empty = document.getElementById('emptyState');
+  list.style.display = 'none';
+  empty.style.display = 'flex';
+
+  if(sops.length === 0){
+    empty.innerHTML = stampSvg('NEW', false, -6) +
+      '<h3>No SOPs tracked yet</h3><p>Add your first SOP to start tracking revision status, priority, and PIC ownership.</p>' +
+      '<button class="btn btn-solid" onclick="openModal(\'addModal\')">+ Add SOP</button>';
+    return;
+  }
+  if(filter.priority === 'Urgent'){
+    empty.innerHTML = stampSvg('CLEAR', true, -8) +
+      '<h3>Nothing urgent right now</h3><p>No SOPs are flagged urgent. Everything on the list is on track — check Not urgent for pending items.</p>';
+    return;
+  }
+  if(filter.priority === 'all' && sops.every(s => s.Priority)){
+    empty.innerHTML = stampSvg('UP TO DATE', true, -7) +
+      '<h3>All SOPs are current</h3><p>Every SOP has been reviewed and prioritized. New items will appear here as they come up.</p>';
+    return;
+  }
+  if(filter.pic !== 'all'){
+    empty.innerHTML = stampSvg('UNASSIGNED', false, -5) +
+      `<h3>${filter.pic} has no SOPs assigned</h3><p>Nothing has been assigned to this PIC yet. Assign an SOP or pick another PIC from the filter.</p>`;
+    return;
+  }
+  empty.innerHTML = stampSvg('NOT FOUND', false, -6) +
+    `<h3>No matches for "${filter.search}"</h3><p>Try a different SOP name, or clear the filter to see the full list.</p>`;
+}
+
+function render(){
+  const picSet = new Set(sops.map(s => s.PIC).filter(Boolean));
+  const picFilterEl = document.getElementById('picFilter');
+  const current = filter.pic;
+  picFilterEl.innerHTML = '<option value="all">All PIC</option>' +
+    [...picSet].map(p => `<option value="${p}">${p}</option>`).join('');
+  picFilterEl.value = picSet.has(current) ? current : 'all';
+  filter.pic = picFilterEl.value;
+
+  let filtered = sops.filter(s => {
+    if(filter.priority === 'unset' && s.Priority) return false;
+    if(filter.priority !== 'all' && filter.priority !== 'unset' && s.Priority !== filter.priority) return false;
+    if(filter.pic !== 'all' && s.PIC !== filter.pic) return false;
+    if(filter.search && !s.Title.toLowerCase().includes(filter.search)) return false;
+    return true;
+  });
+
+  const list = document.getElementById('list');
+  const empty = document.getElementById('emptyState');
+
+  if(filtered.length === 0){ renderEmpty(); return; }
+  list.style.display = 'block';
+  empty.style.display = 'none';
+
+  list.innerHTML = filtered.map(sop => `
+    <div class="card">
+      <div class="card-top">
+        <div>
+          <p class="card-title">${sop.Title}</p>
+          <p class="card-cat">${sop.Category || 'Uncategorized'}</p>
+        </div>
+        <div class="row-actions">
+          ${priorityBadge(sop)}
+          <button class="icon-btn" title="Delete" onclick="deleteSOP(sops.find(s=>s.ID==='${sop.ID}'))">✕</button>
+        </div>
+      </div>
+      <div class="meta-row">
+        <div class="meta">
+          <label>PIC</label>
+          <span class="pic-field" onclick="editPIC(sops.find(s=>s.ID==='${sop.ID}'), this)">${sop.PIC || ''}</span>
+        </div>
+        <div class="meta">
+          <label>Status</label>
+          <select class="status" onchange="changeStatus(sops.find(s=>s.ID==='${sop.ID}'), this.value)">
+            ${['Not Started','In Progress','Done'].map(st => `<option ${sop.Status===st?'selected':''}>${st}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+loadSOPs();
+</script>
+</body>
+</html>
