@@ -33,6 +33,10 @@
   .badge-urgent{background:var(--urgent-soft);color:var(--urgent);border-color:var(--urgent)}
   .badge-noturgent{background:var(--brand-soft);color:var(--brand);border-color:var(--brand)}
   .badge-unset{background:#F1F0EA;color:var(--muted);border:1px dashed var(--muted)}
+  .priority-select{font-size:11px;font-weight:600;padding:4px 22px 4px 9px;border-radius:20px;cursor:pointer;background-position:right 6px center;background-size:10px}
+  .ps-urgent{background-color:var(--urgent-soft);color:var(--urgent);border:1px solid var(--urgent)}
+  .ps-noturgent{background-color:var(--brand-soft);color:var(--brand);border:1px solid var(--brand)}
+  .ps-unset{background-color:#F1F0EA;color:var(--muted);border:1px dashed var(--muted)}
   .meta-row{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap}
   .meta{font-size:12px}
   .meta label{display:block;color:var(--muted);margin-bottom:3px}
@@ -78,7 +82,7 @@
   <div id="list"></div>
   <div class="empty" id="emptyState" style="display:none"></div>
 
-  <p class="hint">Klik badge priority, PIC, atau status buat langsung edit — kesave otomatis ke Google Sheets.</p>
+  <p class="hint">Pilih priority dari dropdown, klik PIC buat edit, atau ganti status — kesave otomatis ke Google Sheets.</p>
 </div>
 
 <div class="modal-bg" id="addModal">
@@ -140,6 +144,10 @@ function cyclePriority(sop){
   doAction({ action:'update', id: sop.ID, fields: { Priority: next } });
 }
 
+function changePriority(sop, val){
+  doAction({ action:'update', id: sop.ID, fields: { Priority: val } });
+}
+
 function editPIC(sop, el){
   el.contentEditable = true;
   el.focus();
@@ -181,10 +189,17 @@ document.querySelectorAll('.tab').forEach(btn => {
 document.getElementById('searchInput').oninput = (e) => { filter.search = e.target.value.toLowerCase(); render(); };
 document.getElementById('picFilter').onchange = (e) => { filter.pic = e.target.value; render(); };
 
-function priorityBadge(sop){
-  if(sop.Priority === 'Urgent') return `<span class="badge badge-urgent" onclick="cyclePriority(sops.find(s=>s.ID==='${sop.ID}'))">Urgent</span>`;
-  if(sop.Priority === 'Not Urgent') return `<span class="badge badge-noturgent" onclick="cyclePriority(sops.find(s=>s.ID==='${sop.ID}'))">Not urgent</span>`;
-  return `<span class="badge badge-unset" onclick="cyclePriority(sops.find(s=>s.ID==='${sop.ID}'))">Set priority</span>`;
+function priorityDropdown(sop){
+  const val = sop.Priority || '';
+  let cls = 'priority-select ';
+  if(val === 'Urgent') cls += 'ps-urgent';
+  else if(val === 'Not Urgent') cls += 'ps-noturgent';
+  else cls += 'ps-unset';
+  return `<select class="${cls}" onchange="changePriority(sops.find(s=>s.ID==='${sop.ID}'), this.value)">
+    <option value="" ${val===''?'selected':''}>Set priority</option>
+    <option value="Urgent" ${val==='Urgent'?'selected':''}>Urgent</option>
+    <option value="Not Urgent" ${val==='Not Urgent'?'selected':''}>Not urgent</option>
+  </select>`;
 }
 
 function stampSvg(text, solid, rot){
@@ -258,7 +273,7 @@ function render(){
           <p class="card-cat">${sop.Category || 'Uncategorized'}</p>
         </div>
         <div class="row-actions">
-          ${priorityBadge(sop)}
+          ${priorityDropdown(sop)}
           <button class="icon-btn" title="Delete" onclick="deleteSOP(sops.find(s=>s.ID==='${sop.ID}'))">✕</button>
         </div>
       </div>
