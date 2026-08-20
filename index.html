@@ -71,6 +71,10 @@
   .upload-btn:hover{border-color:var(--brand);color:var(--brand)}
   .doc-link{font-size:12px;color:var(--brand);text-decoration:none;font-weight:600}
   .doc-link:hover{text-decoration:underline}
+  .cat-badge{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;margin-top:3px}
+  .cat-manual{background:#EAF2FB;color:#1D4ED8}
+  .cat-sop{background:var(--brand-soft);color:var(--brand)}
+  .cat-none{background:#F1F0EA;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -88,6 +92,11 @@
       <button class="tab" data-filter="Not Urgent">Not urgent</button>
       <button class="tab" data-filter="unset">Not yet decided</button>
     </div>
+    <div class="tabs" id="categoryTabs">
+      <button class="tab active" data-cat="all">All category</button>
+      <button class="tab" data-cat="Manual">Manual</button>
+      <button class="tab" data-cat="SOP">SOP</button>
+    </div>
     <input type="text" id="searchInput" placeholder="Search SOP name...">
     <select id="picFilter"><option value="all">All PIC</option></select>
     <button class="btn btn-solid" id="addBtn">+ Add SOP</button>
@@ -104,7 +113,12 @@
   <div class="modal">
     <h3 id="addModalTitle">Add SOP</h3>
     <input type="text" id="newTitle" placeholder="SOP title">
-    <input type="text" id="newCategory" placeholder="Category (e.g. Employee Benefits)">
+    <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px">Category</label>
+    <select id="newCategory" style="width:100%;margin-bottom:10px">
+      <option value="">— Select category —</option>
+      <option value="Manual">Manual</option>
+      <option value="SOP">SOP</option>
+    </select>
     <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px">Target/due date</label>
     <input type="date" id="newDueDate">
     <div class="modal-actions">
@@ -128,7 +142,7 @@ let sops = [
   {ID:'sop_6', Title:'Program Magang', Category:'Talent Acquisition', Priority:'', PIC:'', Status:'Not Started', DueDate:'', Notes:''}
 ];
 
-let filter = { priority: 'all', search: '', pic: 'all' };
+let filter = { priority: 'all', search: '', pic: 'all', category: 'all' };
 
 async function loadSOPs(){
   if(!APPS_SCRIPT_URL) return render();
@@ -222,11 +236,19 @@ document.getElementById('addConfirm').onclick = () => {
   document.getElementById('newDueDate').value = '';
 };
 
-document.querySelectorAll('.tab').forEach(btn => {
+document.querySelectorAll('#priorityTabs .tab').forEach(btn => {
   btn.onclick = () => {
-    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#priorityTabs .tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     filter.priority = btn.dataset.filter;
+    render();
+  };
+});
+document.querySelectorAll('#categoryTabs .tab').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#categoryTabs .tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filter.category = btn.dataset.cat;
     render();
   };
 });
@@ -351,9 +373,18 @@ function render(){
   let filtered = sops.filter(s => {
     if(filter.priority === 'unset' && s.Priority) return false;
     if(filter.priority !== 'all' && filter.priority !== 'unset' && s.Priority !== filter.priority) return false;
+    if(filter.category !== 'all' && s.Category !== filter.category) return false;
     if(filter.pic !== 'all' && s.PIC !== filter.pic) return false;
     if(filter.search && !s.Title.toLowerCase().includes(filter.search)) return false;
     return true;
+  });
+
+  const catRank = { 'Manual': 0, 'SOP': 1, '': 2 };
+  filtered.sort((a, b) => {
+    const ra = catRank[a.Category || ''] ?? 2;
+    const rb = catRank[b.Category || ''] ?? 2;
+    if(ra !== rb) return ra - rb;
+    return a.Title.localeCompare(b.Title);
   });
 
   const list = document.getElementById('list');
@@ -370,7 +401,7 @@ function render(){
           <span class="card-num">${idx + 1}</span>
           <div>
             <p class="card-title">${sop.Title}</p>
-            <p class="card-cat">${sop.Category || 'Uncategorized'}</p>
+            <span class="cat-badge ${sop.Category==='Manual'?'cat-manual':sop.Category==='SOP'?'cat-sop':'cat-none'}">${sop.Category || 'Belum dikategorikan'}</span>
           </div>
         </div>
         <div class="row-actions">
