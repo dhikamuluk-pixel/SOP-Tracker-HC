@@ -67,6 +67,10 @@
   .loading-state{text-align:center;color:var(--muted);padding:50px 0;font-size:13px}
   .loading-state .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin 0.7s linear infinite;margin-right:8px;vertical-align:-3px}
   @keyframes spin{to{transform:rotate(360deg)}}
+  .upload-btn{border:1px dashed var(--border);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--muted);display:inline-block}
+  .upload-btn:hover{border-color:var(--brand);color:var(--brand)}
+  .doc-link{font-size:12px;color:var(--brand);text-decoration:none;font-weight:600}
+  .doc-link:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -229,6 +233,31 @@ document.querySelectorAll('.tab').forEach(btn => {
 document.getElementById('searchInput').oninput = (e) => { filter.search = e.target.value.toLowerCase(); render(); };
 document.getElementById('picFilter').onchange = (e) => { filter.pic = e.target.value; render(); };
 
+function docField(sop){
+  if(sop.DocumentURL){
+    return `<a class="doc-link" href="${sop.DocumentURL}" target="_blank" rel="noopener">📎 ${sop.DocumentName || 'View doc'}</a> <button class="icon-btn" title="Remove" onclick="removeDoc(sops.find(s=>s.ID==='${sop.ID}'))">✕</button>`;
+  }
+  return `<label class="upload-btn">+ Upload<input type="file" style="display:none" onchange="uploadDoc(sops.find(s=>s.ID==='${sop.ID}'), this.files[0])"></label>`;
+}
+
+async function uploadDoc(sop, file){
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024){ alert('File terlalu besar, maksimal 5MB.'); return; }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64 = reader.result.split(',')[1];
+    const result = await writeAction({ action:'uploadFile', id: sop.ID, filename: file.name, mimeType: file.type || 'application/octet-stream', data: base64 });
+    if(!result.ok){ alert(result.error || 'Upload failed'); return; }
+    await loadSOPs();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeDoc(sop){
+  if(!confirm('Hapus link dokumen dari "'+sop.Title+'"? (File di Drive gak ikut kehapus)')) return;
+  doAction({ action:'update', id: sop.ID, fields: { DocumentURL:'', DocumentName:'' } });
+}
+
 function formatDue(sop){
   if(!sop.DueDate) return 'No due date';
   const d = new Date(sop.DueDate);
@@ -364,6 +393,10 @@ function render(){
         <div class="meta">
           <label>Due date</label>
           <span style="${dueDateStyle(sop)}">${formatDue(sop)}</span>
+        </div>
+        <div class="meta">
+          <label>Document</label>
+          ${docField(sop)}
         </div>
       </div>
     </div>
