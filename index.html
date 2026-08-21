@@ -251,7 +251,6 @@ function renderDashboard(){
   const total = sops.length;
   const manual = sops.filter(s => s.Category === 'Manual').length;
   const sop = sops.filter(s => s.Category === 'SOP').length;
-  const uncategorized = total - manual - sop;
   const notStarted = sops.filter(s => s.Status === 'Not Started' || !s.Status).length;
   const inProgress = sops.filter(s => s.Status === 'In Progress').length;
   const done = sops.filter(s => s.Status === 'Done').length;
@@ -267,11 +266,10 @@ function renderDashboard(){
     <div class="stat-card sc-overdue"><div class="stat-label">Overdue</div><div class="stat-value">${overdue}</div></div>
   `;
 
-  const catMax = Math.max(manual, sop, uncategorized, 1);
+  const catMax = Math.max(manual, sop, 1);
   const bars = [
     { label:'Manual', count:manual, color:'#1D4ED8' },
-    { label:'SOP', count:sop, color:'var(--brand)' },
-    { label:'Belum ada', count:uncategorized, color:'#9CA3AF' }
+    { label:'SOP', count:sop, color:'var(--brand)' }
   ];
   document.getElementById('catChart').innerHTML = bars.map(b => `
     <div class="bar-row">
