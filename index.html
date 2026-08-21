@@ -155,6 +155,12 @@
           <button class="tab" data-cat="SOP">SOP</button>
         </div>
         <input type="text" id="searchInput" placeholder="Search SOP name...">
+        <select id="statusFilter">
+          <option value="all">All status</option>
+          <option value="Not Started">Not Started</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Done">Done</option>
+        </select>
         <select id="picFilter"><option value="all">All PIC</option></select>
         <button class="btn btn-solid" id="addBtn">+ Add SOP</button>
       </div>
@@ -201,7 +207,7 @@ let sops = [
   {ID:'sop_6', Title:'Program Magang', Category:'Talent Acquisition', Priority:'', PIC:'', Status:'Not Started', DueDate:'', Notes:''}
 ];
 
-let filter = { priority: 'all', search: '', pic: 'all', category: 'all' };
+let filter = { priority: 'all', search: '', pic: 'all', category: 'all', status: 'all' };
 
 async function loadSOPs(){
   if(!APPS_SCRIPT_URL) { render(); renderDashboard(); return; }
@@ -258,7 +264,7 @@ function renderDashboard(){
   const overdue = sops.filter(s => s.DueDate && new Date(s.DueDate) < today && s.Status !== 'Done').length;
 
   document.getElementById('statGrid').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total SOP</div><div class="stat-value">${total}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Document</div><div class="stat-value">${total}</div></div>
     <div class="stat-card sc-manual"><div class="stat-label">Manual</div><div class="stat-value">${manual}</div></div>
     <div class="stat-card sc-sop"><div class="stat-label">SOP</div><div class="stat-value">${sop}</div></div>
     <div class="stat-card sc-progress"><div class="stat-label">In Progress</div><div class="stat-value">${inProgress}</div></div>
@@ -386,6 +392,7 @@ document.querySelectorAll('#categoryTabs .tab').forEach(btn => {
   };
 });
 document.getElementById('searchInput').oninput = (e) => { filter.search = e.target.value.toLowerCase(); render(); };
+document.getElementById('statusFilter').onchange = (e) => { filter.status = e.target.value; render(); };
 document.getElementById('picFilter').onchange = (e) => { filter.pic = e.target.value; render(); };
 
 function docField(sop){
@@ -486,7 +493,7 @@ function renderSummary(){
   const noturgent = sops.filter(s => s.Priority === 'Not Urgent').length;
   const undecided = sops.filter(s => !s.Priority).length;
   document.getElementById('summary').innerHTML = `
-    <div class="summary-item"><b>${total}</b> Total SOP</div>
+    <div class="summary-item"><b>${total}</b> Total Document</div>
     <div class="summary-item su-urgent"><b>${urgent}</b> Urgent</div>
     <div class="summary-item su-noturgent"><b>${noturgent}</b> Not urgent</div>
     <div class="summary-item"><b>${undecided}</b> Belum Diputuskan</div>
@@ -507,6 +514,7 @@ function render(){
     if(filter.priority === 'unset' && s.Priority) return false;
     if(filter.priority !== 'all' && filter.priority !== 'unset' && s.Priority !== filter.priority) return false;
     if(filter.category !== 'all' && s.Category !== filter.category) return false;
+    if(filter.status !== 'all' && (s.Status || 'Not Started') !== filter.status) return false;
     if(filter.pic !== 'all' && s.PIC !== filter.pic) return false;
     if(filter.search && !s.Title.toLowerCase().includes(filter.search)) return false;
     return true;
