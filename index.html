@@ -94,6 +94,7 @@
   .hint{font-size:12px;color:var(--muted);margin-top:20px;text-align:center}
   .summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
   .summary-item{background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .summary-item:hover{border-color:var(--brand);background:var(--brand-soft)}
   .summary-item b{font-size:15px;color:var(--ink)}
   .summary-item.su-urgent b{color:var(--urgent)}
   .summary-item.su-noturgent b{color:var(--brand)}
@@ -487,16 +488,21 @@ function renderEmpty(){
     `<h3>No matches for "${filter.search}"</h3><p>Try a different SOP name, or clear the filter to see the full list.</p>`;
 }
 
+function setPriorityFilter(val){
+  const tab = document.querySelector(`#priorityTabs [data-filter="${val}"]`);
+  if(tab) tab.click();
+}
+
 function renderSummary(){
   const total = sops.length;
   const urgent = sops.filter(s => s.Priority === 'Urgent').length;
   const noturgent = sops.filter(s => s.Priority === 'Not Urgent').length;
   const undecided = sops.filter(s => !s.Priority).length;
   document.getElementById('summary').innerHTML = `
-    <div class="summary-item"><b>${total}</b> Total Document</div>
-    <div class="summary-item su-urgent"><b>${urgent}</b> Urgent</div>
-    <div class="summary-item su-noturgent"><b>${noturgent}</b> Not urgent</div>
-    <div class="summary-item"><b>${undecided}</b> Belum Diputuskan</div>
+    <div class="summary-item" style="cursor:pointer" onclick="setPriorityFilter('all')"><b>${total}</b> Total Document</div>
+    <div class="summary-item su-urgent" style="cursor:pointer" onclick="setPriorityFilter('Urgent')"><b>${urgent}</b> Urgent</div>
+    <div class="summary-item su-noturgent" style="cursor:pointer" onclick="setPriorityFilter('Not Urgent')"><b>${noturgent}</b> Not urgent</div>
+    <div class="summary-item" style="cursor:pointer" onclick="setPriorityFilter('unset')"><b>${undecided}</b> Belum Diputuskan</div>
   `;
 }
 
