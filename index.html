@@ -110,17 +110,24 @@
   .cat-sop{background:var(--brand-soft);color:var(--brand)}
   .cat-none{background:#F1F0EA;color:var(--muted)}
   .aging-group{border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;background:#fff}
-  .aging-head{padding:9px 16px;font-size:13px;font-weight:700;display:flex;justify-content:space-between}
+  .aging-head{padding:9px 16px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+  .aging-head:hover{filter:brightness(0.97)}
+  .aging-head .ag-head-left{display:flex;align-items:center;gap:8px}
+  .aging-chevron{display:inline-block;font-size:11px;transition:transform .15s ease}
+  .aging-chevron.collapsed{transform:rotate(-90deg)}
   .aging-head.ag-old{background:var(--urgent-soft);color:var(--urgent)}
   .aging-head.ag-mid{background:#FDF1DE;color:#B45309}
   .aging-head.ag-unknown{background:#F1F0EA;color:var(--muted)}
   .aging-row{display:flex;align-items:center;gap:12px;padding:9px 16px;border-top:1px solid var(--border);font-size:13px}
-  .aging-row .ag-title{flex:2;min-width:0}
+  .aging-row .ag-title{flex:2;min-width:0;cursor:pointer;color:var(--ink)}
+  .aging-row .ag-title:hover{color:var(--brand);text-decoration:underline}
   .aging-row .ag-date{flex:1;color:var(--muted);font-size:12px}
-  .aging-row .ag-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px}
-  .ag-badge.status-notstarted{background:#F1F0EA;color:var(--muted)}
-  .ag-badge.status-inprogress{background:#FDF1DE;color:#B45309}
-  .ag-badge.status-done{background:#E6F4EA;color:#15803D}
+  .ag-badge, .ag-badge-select{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap}
+  .ag-badge-select{border:none;cursor:pointer;padding-right:20px;background-position:right 6px center;background-size:9px}
+  .status-notstarted{background:#F1F0EA;color:var(--muted)}
+  .status-inprogress{background:#FDF1DE;color:#B45309}
+  .status-done{background:#E6F4EA;color:#15803D}
+  .analytics-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 </style>
 </head>
 <body>
@@ -188,7 +195,16 @@
 
     <div class="page" id="view-analytics" style="display:none">
       <div class="stat-grid" id="agingStatGrid"></div>
-      <p class="hint" style="margin:0 0 14px;text-align:left">Dikelompokkan per tahun expired, dari yang paling lama. SOP tanpa expired date masuk ke grup "Belum dicek".</p>
+      <div class="analytics-toolbar">
+        <select id="agingStatusFilter">
+          <option value="all">All status</option>
+          <option value="Not Started">Not Started</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Done">Done</option>
+        </select>
+        <button class="btn" id="agingSortBtn">Sort: Paling lama dulu ▲</button>
+      </div>
+      <p class="hint" style="margin:0 0 14px;text-align:left">Dikelompokkan per tahun expired. Klik nama SOP untuk buka di Database SOP, klik header grup untuk collapse/expand, klik status untuk update langsung.</p>
       <div id="agingGroups"></div>
     </div>
   </main>
@@ -231,6 +247,11 @@ let sops = [
 
 let filter = { priority: 'all', search: '', pic: 'all', category: 'all', status: 'all' };
 
+// ── Analytics (aging report) state ─────────────────────────
+let agingStatusFilterVal = 'all';
+let agingSortDir = 'asc'; // 'asc' = oldest expired first, 'desc' = newest expired first
+let agingCollapsed = {};  // key: group label (year or 'Belum dicek') -> true/false
+
 async function loadSOPs(){
   if(!APPS_SCRIPT_URL) { render(); renderDashboard(); return; }
   try{
@@ -255,6 +276,8 @@ async function doAction(action){
   const result = await writeAction(action);
   if(!result.ok){ alert(result.error || 'Save failed'); return; }
   await loadSOPs();
+  // keep analytics view in sync if it's the active page
+  if(document.getElementById('view-analytics').style.display !== 'none') renderAnalytics();
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {
@@ -425,6 +448,35 @@ document.querySelectorAll('#categoryTabs .tab').forEach(btn => {
 document.getElementById('searchInput').oninput = (e) => { filter.search = e.target.value.toLowerCase(); render(); };
 document.getElementById('statusFilter').onchange = (e) => { filter.status = e.target.value; render(); };
 document.getElementById('picFilter').onchange = (e) => { filter.pic = e.target.value; render(); };
+
+// ── Analytics toolbar handlers ─────────────────────────────
+document.getElementById('agingStatusFilter').onchange = (e) => {
+  agingStatusFilterVal = e.target.value;
+  renderAnalytics();
+};
+document.getElementById('agingSortBtn').onclick = () => {
+  agingSortDir = agingSortDir === 'asc' ? 'desc' : 'asc';
+  document.getElementById('agingSortBtn').textContent = agingSortDir === 'asc'
+    ? 'Sort: Paling lama dulu ▲'
+    : 'Sort: Paling baru dulu ▼';
+  renderAnalytics();
+};
+
+function toggleAgingGroup(key){
+  agingCollapsed[key] = !agingCollapsed[key];
+  renderAnalytics();
+}
+
+// Klik nama SOP di Analytics -> lompat ke Database SOP dan langsung filter by judul
+function goToSOPInDatabase(title){
+  const dbNavBtn = document.querySelector('.nav-item[data-view="database"]');
+  if(dbNavBtn) dbNavBtn.click();
+  const searchEl = document.getElementById('searchInput');
+  searchEl.value = title;
+  filter.search = title.toLowerCase();
+  render();
+  searchEl.focus();
+}
 
 function docField(sop){
   if(sop.DocumentURL){
@@ -617,60 +669,87 @@ function statusBadgeClass(status){
   return 'status-notstarted';
 }
 
+function statusSelect(sop){
+  const status = sop.Status || 'Not Started';
+  return `<select class="ag-badge-select ${statusBadgeClass(status)}" onchange="changeStatus(sops.find(s=>s.ID==='${sop.ID}'), this.value)">
+    ${['Not Started','In Progress','Done'].map(st => `<option ${status===st?'selected':''}>${st}</option>`).join('')}
+  </select>`;
+}
+
 function renderAnalytics(){
   const today = new Date(); today.setHours(0,0,0,0);
   const withDate = sops.filter(s => s.ExpiredDate && !isNaN(new Date(s.ExpiredDate)));
   const noDate = sops.filter(s => !s.ExpiredDate || isNaN(new Date(s.ExpiredDate)));
-  const expired = withDate.filter(s => new Date(s.ExpiredDate) < today);
+  let expired = withDate.filter(s => new Date(s.ExpiredDate) < today);
 
+  // stat cards always reflect the full (unfiltered) picture
   let oldestYear = '—';
   if(expired.length){
     oldestYear = Math.min(...expired.map(s => new Date(s.ExpiredDate).getFullYear()));
   }
-
   document.getElementById('agingStatGrid').innerHTML = `
     <div class="stat-card sc-overdue"><div class="stat-label">Total SOP Expired</div><div class="stat-value">${expired.length}</div></div>
     <div class="stat-card sc-progress"><div class="stat-label">Paling Lama Expired</div><div class="stat-value">${oldestYear}</div></div>
     <div class="stat-card"><div class="stat-label">Belum Dicek</div><div class="stat-value">${noDate.length}</div></div>
   `;
 
+  // apply status filter to what actually renders below
+  let expiredFiltered = expired;
+  let noDateFiltered = noDate;
+  if(agingStatusFilterVal !== 'all'){
+    expiredFiltered = expired.filter(s => (s.Status || 'Not Started') === agingStatusFilterVal);
+    noDateFiltered = noDate.filter(s => (s.Status || 'Not Started') === agingStatusFilterVal);
+  }
+
   const byYear = {};
-  expired.forEach(s => {
+  expiredFiltered.forEach(s => {
     const y = new Date(s.ExpiredDate).getFullYear();
     (byYear[y] = byYear[y] || []).push(s);
   });
-  const years = Object.keys(byYear).sort((a,b) => a - b);
+  let years = Object.keys(byYear).sort((a,b) => a - b);
   const oldestNumeric = years.length ? Number(years[0]) : null;
+  if(agingSortDir === 'desc') years = years.slice().reverse();
 
   let html = '';
   years.forEach(y => {
-    const items = byYear[y].sort((a,b) => new Date(a.ExpiredDate) - new Date(b.ExpiredDate));
+    const items = byYear[y].sort((a,b) => {
+      const diff = new Date(a.ExpiredDate) - new Date(b.ExpiredDate);
+      return agingSortDir === 'asc' ? diff : -diff;
+    });
     const cls = (Number(y) === oldestNumeric) ? 'ag-old' : 'ag-mid';
+    const collapsed = !!agingCollapsed[y];
     html += `<div class="aging-group">
-      <div class="aging-head ${cls}"><span>${y}</span><span>${items.length} SOP</span></div>
-      ${items.map(s => `
+      <div class="aging-head ${cls}" onclick="toggleAgingGroup('${y}')">
+        <span class="ag-head-left"><span class="aging-chevron ${collapsed?'collapsed':''}">▾</span>${y}</span>
+        <span>${items.length} SOP</span>
+      </div>
+      ${collapsed ? '' : items.map(s => `
         <div class="aging-row">
-          <div class="ag-title">${s.Title}</div>
+          <div class="ag-title" onclick="goToSOPInDatabase('${s.Title.replace(/'/g,"\\'")}')">${s.Title}</div>
           <div class="ag-date">Expired ${formatDateShort(s.ExpiredDate)}</div>
-          <span class="ag-badge ${statusBadgeClass(s.Status)}">${s.Status || 'Not Started'}</span>
+          ${statusSelect(s)}
         </div>`).join('')}
     </div>`;
   });
 
-  if(noDate.length){
+  if(noDateFiltered.length){
+    const collapsed = !!agingCollapsed['unknown'];
     html += `<div class="aging-group">
-      <div class="aging-head ag-unknown"><span>Belum dicek</span><span>${noDate.length} SOP</span></div>
-      ${noDate.map(s => `
+      <div class="aging-head ag-unknown" onclick="toggleAgingGroup('unknown')">
+        <span class="ag-head-left"><span class="aging-chevron ${collapsed?'collapsed':''}">▾</span>Belum dicek</span>
+        <span>${noDateFiltered.length} SOP</span>
+      </div>
+      ${collapsed ? '' : noDateFiltered.map(s => `
         <div class="aging-row">
-          <div class="ag-title">${s.Title}</div>
+          <div class="ag-title" onclick="goToSOPInDatabase('${s.Title.replace(/'/g,"\\'")}')">${s.Title}</div>
           <div class="ag-date">Expired date belum diisi</div>
-          <span class="ag-badge ${statusBadgeClass(s.Status)}">${s.Status || 'Not Started'}</span>
+          ${statusSelect(s)}
         </div>`).join('')}
     </div>`;
   }
 
-  if(!years.length && !noDate.length){
-    html = '<p class="hint" style="text-align:left">Belum ada SOP yang expired atau tercatat.</p>';
+  if(!years.length && !noDateFiltered.length){
+    html = '<p class="hint" style="text-align:left">Tidak ada SOP yang cocok dengan filter status ini.</p>';
   }
 
   document.getElementById('agingGroups').innerHTML = html;
