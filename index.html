@@ -109,6 +109,18 @@
   .cat-manual{background:#EAF2FB;color:#1D4ED8}
   .cat-sop{background:var(--brand-soft);color:var(--brand)}
   .cat-none{background:#F1F0EA;color:var(--muted)}
+  .aging-group{border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;background:#fff}
+  .aging-head{padding:9px 16px;font-size:13px;font-weight:700;display:flex;justify-content:space-between}
+  .aging-head.ag-old{background:var(--urgent-soft);color:var(--urgent)}
+  .aging-head.ag-mid{background:#FDF1DE;color:#B45309}
+  .aging-head.ag-unknown{background:#F1F0EA;color:var(--muted)}
+  .aging-row{display:flex;align-items:center;gap:12px;padding:9px 16px;border-top:1px solid var(--border);font-size:13px}
+  .aging-row .ag-title{flex:2;min-width:0}
+  .aging-row .ag-date{flex:1;color:var(--muted);font-size:12px}
+  .aging-row .ag-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px}
+  .ag-badge.status-notstarted{background:#F1F0EA;color:var(--muted)}
+  .ag-badge.status-inprogress{background:#FDF1DE;color:#B45309}
+  .ag-badge.status-done{background:#E6F4EA;color:#15803D}
 </style>
 </head>
 <body>
@@ -120,6 +132,7 @@
     <div class="nav-label">Menu Navigasi</div>
     <button class="nav-item active" data-view="dashboard">📊 Dashboard Utama</button>
     <button class="nav-item" data-view="database">📋 Database SOP</button>
+    <button class="nav-item" data-view="analytics">📈 Analytics</button>
   </aside>
 
   <main class="main">
@@ -172,6 +185,12 @@
 
       <p class="hint">Pilih priority dari dropdown, klik PIC buat edit, atau ganti status — kesave otomatis ke Google Sheets.</p>
     </div>
+
+    <div class="page" id="view-analytics" style="display:none">
+      <div class="stat-grid" id="agingStatGrid"></div>
+      <p class="hint" style="margin:0 0 14px;text-align:left">Dikelompokkan per tahun expired, dari yang paling lama. SOP tanpa expired date masuk ke grup "Belum dicek".</p>
+      <div id="agingGroups"></div>
+    </div>
   </main>
 </div>
 
@@ -187,6 +206,8 @@
     </select>
     <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px">Target/due date</label>
     <input type="date" id="newDueDate">
+    <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px">Expired date (opsional, sesuai database perusahaan)</label>
+    <input type="date" id="newExpiredDate">
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('addModal')">Cancel</button>
       <button class="btn btn-solid" id="addConfirm">Add</button>
@@ -200,12 +221,12 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdt60-C8eRU8Nh
 
 // ── Seed data (used until APPS_SCRIPT_URL is set) ─────────
 let sops = [
-  {ID:'sop_1', Title:'Spot Recognition Award', Category:'Recognition & Engagement', Priority:'', PIC:'', Status:'Not Started', DueDate:'', Notes:''},
-  {ID:'sop_2', Title:'Time Sheet', Category:'Payroll & Attendance', Priority:'', PIC:'', Status:'Not Started', DueDate:'', Notes:''},
-  {ID:'sop_3', Title:'Training and Development', Category:'Learning & Development', Priority:'', PIC:'', Status:'Not Started', DueDate:'', Notes:''},
-  {ID:'sop_4', Title:'Hajj Pilgrimage Assistance Program', Category:'Employee Benefits', Priority:'', PIC:'', Status:'Not Started', DueDate:'', Notes:''},
-  {ID:'sop_5', Title:'Reward for High Achieving Student (PPSB)', Category:'Employee Benefits', Priority:'', PIC:'', Status:'Not Started', DueDate:'', Notes:''},
-  {ID:'sop_6', Title:'Program Magang', Category:'Talent Acquisition', Priority:'', PIC:'', Status:'Not Started', DueDate:'', Notes:''}
+  {ID:'sop_1', Title:'Spot Recognition Award', Category:'Recognition & Engagement', Priority:'', PIC:'', Status:'Not Started', DueDate:'', ExpiredDate:'', Notes:''},
+  {ID:'sop_2', Title:'Time Sheet', Category:'Payroll & Attendance', Priority:'', PIC:'', Status:'Not Started', DueDate:'', ExpiredDate:'', Notes:''},
+  {ID:'sop_3', Title:'Training and Development', Category:'Learning & Development', Priority:'', PIC:'', Status:'Not Started', DueDate:'', ExpiredDate:'', Notes:''},
+  {ID:'sop_4', Title:'Hajj Pilgrimage Assistance Program', Category:'Employee Benefits', Priority:'', PIC:'', Status:'Not Started', DueDate:'', ExpiredDate:'', Notes:''},
+  {ID:'sop_5', Title:'Reward for High Achieving Student (PPSB)', Category:'Employee Benefits', Priority:'', PIC:'', Status:'Not Started', DueDate:'', ExpiredDate:'', Notes:''},
+  {ID:'sop_6', Title:'Program Magang', Category:'Talent Acquisition', Priority:'', PIC:'', Status:'Not Started', DueDate:'', ExpiredDate:'', Notes:''}
 ];
 
 let filter = { priority: 'all', search: '', pic: 'all', category: 'all', status: 'all' };
@@ -243,10 +264,15 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     const view = btn.dataset.view;
     document.getElementById('view-dashboard').style.display = view === 'dashboard' ? 'block' : 'none';
     document.getElementById('view-database').style.display = view === 'database' ? 'block' : 'none';
+    document.getElementById('view-analytics').style.display = view === 'analytics' ? 'block' : 'none';
     if(view === 'dashboard'){
       document.getElementById('pageTitle').textContent = 'Dashboard Utama';
       document.getElementById('pageSubtitle').textContent = 'Overview jumlah dan status SOP yang perlu direvisi';
       renderDashboard();
+    }else if(view === 'analytics'){
+      document.getElementById('pageTitle').textContent = 'Analytics';
+      document.getElementById('pageSubtitle').textContent = 'Aging report — SOP yang sudah expired, diurutkan dari yang paling lama';
+      renderAnalytics();
     }else{
       document.getElementById('pageTitle').textContent = 'Database SOP';
       document.getElementById('pageSubtitle').textContent = 'Priority and PIC status for pending SOP updates';
@@ -347,6 +373,7 @@ document.getElementById('addBtn').onclick = () => {
   document.getElementById('newTitle').value = '';
   document.getElementById('newCategory').value = '';
   document.getElementById('newDueDate').value = '';
+  document.getElementById('newExpiredDate').value = '';
   openModal('addModal');
 };
 
@@ -357,6 +384,7 @@ function editSOP(sop){
   document.getElementById('newTitle').value = sop.Title;
   document.getElementById('newCategory').value = sop.Category || '';
   document.getElementById('newDueDate').value = sop.DueDate || '';
+  document.getElementById('newExpiredDate').value = sop.ExpiredDate || '';
   openModal('addModal');
 }
 
@@ -364,16 +392,18 @@ document.getElementById('addConfirm').onclick = () => {
   const title = document.getElementById('newTitle').value.trim();
   const category = document.getElementById('newCategory').value.trim();
   const dueDate = document.getElementById('newDueDate').value;
+  const expiredDate = document.getElementById('newExpiredDate').value;
   if(!title){ alert('Enter a SOP title'); return; }
   closeModal('addModal');
   if(editingId){
-    doAction({ action:'update', id: editingId, fields: { Title: title, Category: category, DueDate: dueDate } });
+    doAction({ action:'update', id: editingId, fields: { Title: title, Category: category, DueDate: dueDate, ExpiredDate: expiredDate } });
   }else{
-    doAction({ action:'add', title, category, dueDate, priority:'', pic:'', status:'Not Started', notes:'' });
+    doAction({ action:'add', title, category, dueDate, expiredDate, priority:'', pic:'', status:'Not Started', notes:'' });
   }
   document.getElementById('newTitle').value = '';
   document.getElementById('newCategory').value = '';
   document.getElementById('newDueDate').value = '';
+  document.getElementById('newExpiredDate').value = '';
 };
 
 document.querySelectorAll('#priorityTabs .tab').forEach(btn => {
@@ -579,6 +609,77 @@ function render(){
       </div>
     </div>
   `).join('');
+}
+
+function statusBadgeClass(status){
+  if(status === 'In Progress') return 'status-inprogress';
+  if(status === 'Done') return 'status-done';
+  return 'status-notstarted';
+}
+
+function renderAnalytics(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const withDate = sops.filter(s => s.ExpiredDate && !isNaN(new Date(s.ExpiredDate)));
+  const noDate = sops.filter(s => !s.ExpiredDate || isNaN(new Date(s.ExpiredDate)));
+  const expired = withDate.filter(s => new Date(s.ExpiredDate) < today);
+
+  let oldestYear = '—';
+  if(expired.length){
+    oldestYear = Math.min(...expired.map(s => new Date(s.ExpiredDate).getFullYear()));
+  }
+
+  document.getElementById('agingStatGrid').innerHTML = `
+    <div class="stat-card sc-overdue"><div class="stat-label">Total SOP Expired</div><div class="stat-value">${expired.length}</div></div>
+    <div class="stat-card sc-progress"><div class="stat-label">Paling Lama Expired</div><div class="stat-value">${oldestYear}</div></div>
+    <div class="stat-card"><div class="stat-label">Belum Dicek</div><div class="stat-value">${noDate.length}</div></div>
+  `;
+
+  const byYear = {};
+  expired.forEach(s => {
+    const y = new Date(s.ExpiredDate).getFullYear();
+    (byYear[y] = byYear[y] || []).push(s);
+  });
+  const years = Object.keys(byYear).sort((a,b) => a - b);
+  const oldestNumeric = years.length ? Number(years[0]) : null;
+
+  let html = '';
+  years.forEach(y => {
+    const items = byYear[y].sort((a,b) => new Date(a.ExpiredDate) - new Date(b.ExpiredDate));
+    const cls = (Number(y) === oldestNumeric) ? 'ag-old' : 'ag-mid';
+    html += `<div class="aging-group">
+      <div class="aging-head ${cls}"><span>${y}</span><span>${items.length} SOP</span></div>
+      ${items.map(s => `
+        <div class="aging-row">
+          <div class="ag-title">${s.Title}</div>
+          <div class="ag-date">Expired ${formatDateShort(s.ExpiredDate)}</div>
+          <span class="ag-badge ${statusBadgeClass(s.Status)}">${s.Status || 'Not Started'}</span>
+        </div>`).join('')}
+    </div>`;
+  });
+
+  if(noDate.length){
+    html += `<div class="aging-group">
+      <div class="aging-head ag-unknown"><span>Belum dicek</span><span>${noDate.length} SOP</span></div>
+      ${noDate.map(s => `
+        <div class="aging-row">
+          <div class="ag-title">${s.Title}</div>
+          <div class="ag-date">Expired date belum diisi</div>
+          <span class="ag-badge ${statusBadgeClass(s.Status)}">${s.Status || 'Not Started'}</span>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  if(!years.length && !noDate.length){
+    html = '<p class="hint" style="text-align:left">Belum ada SOP yang expired atau tercatat.</p>';
+  }
+
+  document.getElementById('agingGroups').innerHTML = html;
+}
+
+function formatDateShort(dateStr){
+  const d = new Date(dateStr);
+  if(isNaN(d)) return dateStr;
+  return d.toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
 }
 
 loadSOPs();
