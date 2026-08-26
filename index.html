@@ -117,6 +117,7 @@
   .aging-chevron.collapsed{transform:rotate(-90deg)}
   .aging-head.ag-old{background:var(--urgent-soft);color:var(--urgent)}
   .aging-head.ag-mid{background:#FDF1DE;color:#B45309}
+  .aging-head.ag-upcoming{background:var(--brand-soft);color:var(--brand)}
   .aging-head.ag-unknown{background:#F1F0EA;color:var(--muted)}
   .aging-row{display:flex;align-items:center;gap:12px;padding:9px 16px;border-top:1px solid var(--border);font-size:13px}
   .aging-row .ag-title{flex:2;min-width:0;cursor:pointer;color:var(--ink)}
@@ -518,6 +519,21 @@ function dueDateStyle(sop){
   return '';
 }
 
+function formatExpired(sop){
+  if(!sop.ExpiredDate) return 'Belum diisi';
+  const d = new Date(sop.ExpiredDate);
+  if(isNaN(d)) return sop.ExpiredDate;
+  return d.toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function expiredDateStyle(sop){
+  if(!sop.ExpiredDate) return 'color:var(--muted)';
+  const d = new Date(sop.ExpiredDate);
+  const today = new Date(); today.setHours(0,0,0,0);
+  if(!isNaN(d) && d < today) return 'color:var(--urgent);font-weight:600';
+  return '';
+}
+
 function priorityDropdown(sop){
   const val = sop.Priority || '';
   let cls = 'priority-select ';
@@ -658,6 +674,10 @@ function render(){
           <label>Document</label>
           ${docField(sop)}
         </div>
+        <div class="meta">
+          <label>Expired date</label>
+          <span style="${expiredDateStyle(sop)}">${formatExpired(sop)}</span>
+        </div>
       </div>
     </div>
   `).join('');
@@ -681,6 +701,7 @@ function renderAnalytics(){
   const withDate = sops.filter(s => s.ExpiredDate && !isNaN(new Date(s.ExpiredDate)));
   const noDate = sops.filter(s => !s.ExpiredDate || isNaN(new Date(s.ExpiredDate)));
   let expired = withDate.filter(s => new Date(s.ExpiredDate) < today);
+  let notYetExpired = withDate.filter(s => new Date(s.ExpiredDate) >= today);
 
   // stat cards always reflect the full (unfiltered) picture
   let oldestYear = '—';
@@ -690,14 +711,17 @@ function renderAnalytics(){
   document.getElementById('agingStatGrid').innerHTML = `
     <div class="stat-card sc-overdue"><div class="stat-label">Total SOP Expired</div><div class="stat-value">${expired.length}</div></div>
     <div class="stat-card sc-progress"><div class="stat-label">Paling Lama Expired</div><div class="stat-value">${oldestYear}</div></div>
+    <div class="stat-card sc-done"><div class="stat-label">Belum Expired</div><div class="stat-value">${notYetExpired.length}</div></div>
     <div class="stat-card"><div class="stat-label">Belum Dicek</div><div class="stat-value">${noDate.length}</div></div>
   `;
 
   // apply status filter to what actually renders below
   let expiredFiltered = expired;
+  let notYetExpiredFiltered = notYetExpired;
   let noDateFiltered = noDate;
   if(agingStatusFilterVal !== 'all'){
     expiredFiltered = expired.filter(s => (s.Status || 'Not Started') === agingStatusFilterVal);
+    notYetExpiredFiltered = notYetExpired.filter(s => (s.Status || 'Not Started') === agingStatusFilterVal);
     noDateFiltered = noDate.filter(s => (s.Status || 'Not Started') === agingStatusFilterVal);
   }
 
@@ -732,6 +756,26 @@ function renderAnalytics(){
     </div>`;
   });
 
+  if(notYetExpiredFiltered.length){
+    const items = notYetExpiredFiltered.sort((a,b) => {
+      const diff = new Date(a.ExpiredDate) - new Date(b.ExpiredDate);
+      return agingSortDir === 'asc' ? diff : -diff;
+    });
+    const collapsed = !!agingCollapsed['upcoming'];
+    html += `<div class="aging-group">
+      <div class="aging-head ag-upcoming" onclick="toggleAgingGroup('upcoming')">
+        <span class="ag-head-left"><span class="aging-chevron ${collapsed?'collapsed':''}">▾</span>Belum Expired</span>
+        <span>${items.length} SOP</span>
+      </div>
+      ${collapsed ? '' : items.map(s => `
+        <div class="aging-row">
+          <div class="ag-title" onclick="goToSOPInDatabase('${s.Title.replace(/'/g,"\\'")}')">${s.Title}</div>
+          <div class="ag-date">Expired ${formatDateShort(s.ExpiredDate)}</div>
+          ${statusSelect(s)}
+        </div>`).join('')}
+    </div>`;
+  }
+
   if(noDateFiltered.length){
     const collapsed = !!agingCollapsed['unknown'];
     html += `<div class="aging-group">
@@ -748,7 +792,7 @@ function renderAnalytics(){
     </div>`;
   }
 
-  if(!years.length && !noDateFiltered.length){
+  if(!years.length && !notYetExpiredFiltered.length && !noDateFiltered.length){
     html = '<p class="hint" style="text-align:left">Tidak ada SOP yang cocok dengan filter status ini.</p>';
   }
 
