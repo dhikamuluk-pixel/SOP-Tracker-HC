@@ -129,6 +129,11 @@
   .status-inprogress{background:#FDF1DE;color:#B45309}
   .status-done{background:#E6F4EA;color:#15803D}
   .analytics-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  #toastStack{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;align-items:flex-end;z-index:100}
+  .toast{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;max-width:300px;box-shadow:0 2px 10px rgba(0,0,0,.12);opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease}
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast-success{background:var(--brand-soft);color:var(--brand);border-left:3px solid var(--brand)}
+  .toast-error{background:var(--urgent-soft);color:var(--urgent);border-left:3px solid var(--urgent)}
 </style>
 </head>
 <body>
@@ -238,6 +243,8 @@
   </div>
 </div>
 
+<div id="toastStack"></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
 <script>
 // ── Config ──────────────────────────────────────────────
@@ -272,8 +279,21 @@ async function loadSOPs(){
   renderDashboard();
 }
 
+function showToast(message, type){
+  const stack = document.getElementById('toastStack');
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (type === 'error' ? 'error' : 'success');
+  el.textContent = message;
+  stack.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 200);
+  }, 3000);
+}
+
 async function writeAction(payload){
-  if(!APPS_SCRIPT_URL){ alert('Set APPS_SCRIPT_URL first to save changes.'); return {ok:false}; }
+  if(!APPS_SCRIPT_URL){ showToast('Set APPS_SCRIPT_URL first to save changes.', 'error'); return {ok:false}; }
   const res = await fetch(APPS_SCRIPT_URL, {method:'POST', body: JSON.stringify(payload)});
   return res.json();
 }
@@ -281,9 +301,10 @@ async function writeAction(payload){
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
-async function doAction(action){
+async function doAction(action, successMessage){
   const result = await writeAction(action);
-  if(!result.ok){ alert(result.error || 'Save failed'); return; }
+  if(!result.ok){ showToast(result.error || 'Save failed', 'error'); return; }
+  if(successMessage) showToast(successMessage, 'success');
   await loadSOPs();
   // keep analytics view in sync if it's the active page
   if(document.getElementById('view-analytics').style.display !== 'none') renderAnalytics();
@@ -393,7 +414,7 @@ function changeStatus(sop, val){
 
 function deleteSOP(sop){
   if(!confirm('Delete "'+sop.Title+'"?')) return;
-  doAction({ action:'delete', id: sop.ID });
+  doAction({ action:'delete', id: sop.ID }, 'SOP dihapus');
 }
 
 let editingId = null;
@@ -425,12 +446,12 @@ document.getElementById('addConfirm').onclick = () => {
   const category = document.getElementById('newCategory').value.trim();
   const dueDate = document.getElementById('newDueDate').value;
   const expiredDate = document.getElementById('newExpiredDate').value;
-  if(!title){ alert('Enter a SOP title'); return; }
+  if(!title){ showToast('Enter a SOP title', 'error'); return; }
   closeModal('addModal');
   if(editingId){
-    doAction({ action:'update', id: editingId, fields: { Title: title, Category: category, DueDate: dueDate, ExpiredDate: expiredDate } });
+    doAction({ action:'update', id: editingId, fields: { Title: title, Category: category, DueDate: dueDate, ExpiredDate: expiredDate } }, 'SOP diperbarui');
   }else{
-    doAction({ action:'add', title, category, dueDate, expiredDate, priority:'', pic:'', status:'Not Started', notes:'' });
+    doAction({ action:'add', title, category, dueDate, expiredDate, priority:'', pic:'', status:'Not Started', notes:'' }, 'SOP ditambahkan');
   }
   document.getElementById('newTitle').value = '';
   document.getElementById('newCategory').value = '';
@@ -496,12 +517,13 @@ function docField(sop){
 
 async function uploadDoc(sop, file){
   if(!file) return;
-  if(file.size > 5 * 1024 * 1024){ alert('File terlalu besar, maksimal 5MB.'); return; }
+  if(file.size > 5 * 1024 * 1024){ showToast('File terlalu besar, maksimal 5MB.', 'error'); return; }
   const reader = new FileReader();
   reader.onload = async () => {
     const base64 = reader.result.split(',')[1];
     const result = await writeAction({ action:'uploadFile', id: sop.ID, filename: file.name, mimeType: file.type || 'application/octet-stream', data: base64 });
-    if(!result.ok){ alert(result.error || 'Upload failed'); return; }
+    if(!result.ok){ showToast(result.error || 'Upload failed', 'error'); return; }
+    showToast('Dokumen diunggah', 'success');
     await loadSOPs();
   };
   reader.readAsDataURL(file);
