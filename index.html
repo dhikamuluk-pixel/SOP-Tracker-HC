@@ -206,6 +206,12 @@
         <button class="btn" id="agingSortBtn">Sort: Paling lama dulu ▲</button>
       </div>
       <p class="hint" style="margin:0 0 14px;text-align:left">Dikelompokkan per tahun expired. Klik nama SOP untuk buka di Database SOP, klik header grup untuk collapse/expand, klik status untuk update langsung.</p>
+      <div class="chart-card" style="margin-bottom:16px">
+        <h3>SOP Expired per Tahun</h3>
+        <div style="position:relative;height:220px">
+          <canvas id="agingYearChart"></canvas>
+        </div>
+      </div>
       <div id="agingGroups"></div>
     </div>
   </main>
@@ -232,6 +238,7 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script>
 // ── Config ──────────────────────────────────────────────
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdt60-C8eRU8Nh-x4FNtPr3pLPGO473MWb33wBDshMEqxasumXLLjxwBV8i4QBECX6Eg/exec';
@@ -252,6 +259,7 @@ let filter = { priority: 'all', search: '', pic: 'all', category: 'all', status:
 let agingStatusFilterVal = 'all';
 let agingSortDir = 'asc'; // 'asc' = oldest expired first, 'desc' = newest expired first
 let agingCollapsed = {};  // key: group label (year or 'Belum dicek') -> true/false
+let agingChartInstance = null;
 
 async function loadSOPs(){
   if(!APPS_SCRIPT_URL) { render(); renderDashboard(); return; }
@@ -696,6 +704,46 @@ function statusSelect(sop){
   </select>`;
 }
 
+function renderAgingChart(byYear){
+  // Reuse the exact same byYear grouping used for the Aging Report below —
+  // just extract labels (years) and counts, no new fetch/filter logic.
+  const years = Object.keys(byYear).sort((a,b) => a - b);
+  const counts = years.map(y => byYear[y].length);
+
+  const canvas = document.getElementById('agingYearChart');
+  if(!canvas || typeof Chart === 'undefined') return;
+  const ctx = canvas.getContext('2d');
+
+  if(agingChartInstance) agingChartInstance.destroy();
+
+  agingChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: years,
+      datasets: [{
+        label: 'SOP Expired',
+        data: counts,
+        backgroundColor: '#14532D',
+        borderRadius: 6,
+        maxBarThickness: 48
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1, precision: 0 }
+        }
+      }
+    }
+  });
+}
+
 function renderAnalytics(){
   const today = new Date(); today.setHours(0,0,0,0);
   const withDate = sops.filter(s => s.ExpiredDate && !isNaN(new Date(s.ExpiredDate)));
@@ -730,6 +778,7 @@ function renderAnalytics(){
     const y = new Date(s.ExpiredDate).getFullYear();
     (byYear[y] = byYear[y] || []).push(s);
   });
+  renderAgingChart(byYear);
   let years = Object.keys(byYear).sort((a,b) => a - b);
   const oldestNumeric = years.length ? Number(years[0]) : null;
   if(agingSortDir === 'desc') years = years.slice().reverse();
