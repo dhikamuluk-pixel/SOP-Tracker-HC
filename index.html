@@ -238,7 +238,7 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
 <script>
 // ── Config ──────────────────────────────────────────────
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdt60-C8eRU8Nh-x4FNtPr3pLPGO473MWb33wBDshMEqxasumXLLjxwBV8i4QBECX6Eg/exec';
@@ -711,7 +711,11 @@ function renderAgingChart(byYear){
   const counts = years.map(y => byYear[y].length);
 
   const canvas = document.getElementById('agingYearChart');
-  if(!canvas || typeof Chart === 'undefined') return;
+  if(!canvas) return;
+  if(typeof Chart === 'undefined'){
+    console.warn('Chart.js belum ke-load — cek koneksi CDN atau ad-blocker.');
+    return;
+  }
   const ctx = canvas.getContext('2d');
 
   if(agingChartInstance) agingChartInstance.destroy();
