@@ -190,6 +190,7 @@
           <option value="Done">Done</option>
         </select>
         <select id="picFilter"><option value="all">All PIC</option></select>
+        <button class="btn" id="overdueToggleBtn">Overdue only</button>
         <button class="btn btn-solid" id="addBtn">+ Add SOP</button>
       </div>
 
@@ -261,7 +262,7 @@ let sops = [
   {ID:'sop_6', Title:'Program Magang', Category:'Talent Acquisition', Priority:'', PIC:'', Status:'Not Started', DueDate:'', ExpiredDate:'', Notes:''}
 ];
 
-let filter = { priority: 'all', search: '', pic: 'all', category: 'all', status: 'all' };
+let filter = { priority: 'all', search: '', pic: 'all', category: 'all', status: 'all', overdue: false };
 
 // ── Analytics (aging report) state ─────────────────────────
 let agingStatusFilterVal = 'all';
@@ -350,7 +351,7 @@ function renderDashboard(){
     <div class="stat-card sc-sop" style="cursor:pointer" onclick="goToDatabaseFiltered({category:'SOP'})"><div class="stat-label">SOP</div><div class="stat-value">${sop}</div></div>
     <div class="stat-card sc-progress" style="cursor:pointer" onclick="goToDatabaseFiltered({status:'In Progress'})"><div class="stat-label">In Progress</div><div class="stat-value">${inProgress}</div></div>
     <div class="stat-card sc-done" style="cursor:pointer" onclick="goToDatabaseFiltered({status:'Done'})"><div class="stat-label">Done</div><div class="stat-value">${done}</div></div>
-    <div class="stat-card sc-overdue"><div class="stat-label">Overdue</div><div class="stat-value">${overdue}</div></div>
+    <div class="stat-card sc-overdue" style="cursor:pointer" onclick="goToDatabaseFiltered({overdue:true})"><div class="stat-label">Overdue</div><div class="stat-value">${overdue}</div></div>
   `;
 
   const catMax = Math.max(manual, sop, 1);
@@ -479,6 +480,11 @@ document.querySelectorAll('#categoryTabs .tab').forEach(btn => {
 document.getElementById('searchInput').oninput = (e) => { filter.search = e.target.value.toLowerCase(); render(); };
 document.getElementById('statusFilter').onchange = (e) => { filter.status = e.target.value; render(); };
 document.getElementById('picFilter').onchange = (e) => { filter.pic = e.target.value; render(); };
+document.getElementById('overdueToggleBtn').onclick = () => {
+  filter.overdue = !filter.overdue;
+  document.getElementById('overdueToggleBtn').classList.toggle('btn-solid', filter.overdue);
+  render();
+};
 
 // ── Analytics toolbar handlers ─────────────────────────────
 document.getElementById('agingStatusFilter').onchange = (e) => {
@@ -642,6 +648,9 @@ function goToDatabaseFiltered(opts){
   document.getElementById('statusFilter').value = statusVal;
   filter.status = statusVal;
 
+  filter.overdue = !!opts.overdue;
+  document.getElementById('overdueToggleBtn').classList.toggle('btn-solid', filter.overdue);
+
   document.getElementById('searchInput').value = '';
   filter.search = '';
 
@@ -671,6 +680,7 @@ function render(){
   picFilterEl.value = picSet.has(current) ? current : 'all';
   filter.pic = picFilterEl.value;
 
+  const today = new Date(); today.setHours(0,0,0,0);
   let filtered = sops.filter(s => {
     if(filter.priority === 'unset' && s.Priority) return false;
     if(filter.priority !== 'all' && filter.priority !== 'unset' && s.Priority !== filter.priority) return false;
@@ -678,6 +688,7 @@ function render(){
     if(filter.status !== 'all' && (s.Status || 'Not Started') !== filter.status) return false;
     if(filter.pic !== 'all' && s.PIC !== filter.pic) return false;
     if(filter.search && !s.Title.toLowerCase().includes(filter.search)) return false;
+    if(filter.overdue && !(s.DueDate && new Date(s.DueDate) < today && s.Status !== 'Done')) return false;
     return true;
   });
 
