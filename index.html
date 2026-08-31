@@ -26,6 +26,7 @@
   .page{padding:20px 24px 60px}
   .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
   .stat-card{background:#fff;border:1px solid var(--border);border-left:4px solid var(--brand);border-radius:10px;padding:14px 16px}
+  .stat-card[onclick]:hover{background:var(--brand-soft);border-color:var(--brand)}
   .stat-card.sc-manual{border-left-color:#1D4ED8}
   .stat-card.sc-sop{border-left-color:var(--brand)}
   .stat-card.sc-progress{border-left-color:#B45309}
@@ -344,11 +345,11 @@ function renderDashboard(){
   const overdue = sops.filter(s => s.DueDate && new Date(s.DueDate) < today && s.Status !== 'Done').length;
 
   document.getElementById('statGrid').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total Document</div><div class="stat-value">${total}</div></div>
-    <div class="stat-card sc-manual"><div class="stat-label">Manual</div><div class="stat-value">${manual}</div></div>
-    <div class="stat-card sc-sop"><div class="stat-label">SOP</div><div class="stat-value">${sop}</div></div>
-    <div class="stat-card sc-progress"><div class="stat-label">In Progress</div><div class="stat-value">${inProgress}</div></div>
-    <div class="stat-card sc-done"><div class="stat-label">Done</div><div class="stat-value">${done}</div></div>
+    <div class="stat-card" style="cursor:pointer" onclick="goToDatabaseFiltered({})"><div class="stat-label">Total Document</div><div class="stat-value">${total}</div></div>
+    <div class="stat-card sc-manual" style="cursor:pointer" onclick="goToDatabaseFiltered({category:'Manual'})"><div class="stat-label">Manual</div><div class="stat-value">${manual}</div></div>
+    <div class="stat-card sc-sop" style="cursor:pointer" onclick="goToDatabaseFiltered({category:'SOP'})"><div class="stat-label">SOP</div><div class="stat-value">${sop}</div></div>
+    <div class="stat-card sc-progress" style="cursor:pointer" onclick="goToDatabaseFiltered({status:'In Progress'})"><div class="stat-label">In Progress</div><div class="stat-value">${inProgress}</div></div>
+    <div class="stat-card sc-done" style="cursor:pointer" onclick="goToDatabaseFiltered({status:'Done'})"><div class="stat-label">Done</div><div class="stat-value">${done}</div></div>
     <div class="stat-card sc-overdue"><div class="stat-label">Overdue</div><div class="stat-value">${overdue}</div></div>
   `;
 
@@ -619,6 +620,32 @@ function renderEmpty(){
 function setPriorityFilter(val){
   const tab = document.querySelector(`#priorityTabs [data-filter="${val}"]`);
   if(tab) tab.click();
+}
+
+// Klik card ringkasan di Dashboard Utama -> lompat ke Database SOP dengan filter category/status yang sesuai
+function goToDatabaseFiltered(opts){
+  opts = opts || {};
+  const dbNavBtn = document.querySelector('.nav-item[data-view="database"]');
+  if(dbNavBtn) dbNavBtn.click();
+
+  document.querySelectorAll('#priorityTabs .tab').forEach(b => b.classList.remove('active'));
+  document.querySelector('#priorityTabs [data-filter="all"]').classList.add('active');
+  filter.priority = 'all';
+
+  const catVal = opts.category || 'all';
+  document.querySelectorAll('#categoryTabs .tab').forEach(b => b.classList.remove('active'));
+  const catTab = document.querySelector(`#categoryTabs [data-cat="${catVal}"]`);
+  if(catTab) catTab.classList.add('active');
+  filter.category = catVal;
+
+  const statusVal = opts.status || 'all';
+  document.getElementById('statusFilter').value = statusVal;
+  filter.status = statusVal;
+
+  document.getElementById('searchInput').value = '';
+  filter.search = '';
+
+  render();
 }
 
 function renderSummary(){
